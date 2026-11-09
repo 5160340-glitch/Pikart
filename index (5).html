@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1e1e2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Пиксель">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>Пиксель-аниматор</title>
+<style>
+:root{
+  --bg:#14141f; --panel:#1e1e2e; --panel2:#242438;
+  --border:#313244; --border2:#45475a;
+  --fg:#cdd6f4; --muted:#7f849c;
+  --accent:#89b4fa; --green:#a6e3a1;
+  --side-w:240px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  display:flex;flex-direction:column;
+  height:100vh;height:100dvh;
+  background:var(--bg);color:var(--fg);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:14px;overflow:hidden;overscroll-behavior:none;
+  touch-action:manipulation;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+}
+.topbar{
+  flex:0 0 auto;display:flex;align-items:center;gap:6px;
+  padding:8px 10px;
+  padding-top:calc(8px + env(safe-area-inset-top));
+  padding-left:calc(10px + env(safe-area-inset-left));
+  padding-right:calc(10px + env(safe-area-inset-right));
+  background:var(--panel);border-bottom:1px solid var(--border);
+  position:relative;z-index:20;
+}
+.spacer{flex:1}
+button{
+  font:inherit;color:var(--fg);background:var(--panel2);
+  border:1px solid var(--border2);border-radius:12px;
+  height:42px;min-width:42px;padding:0 11px;
+  display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:19px;line-height:1;
+  transition:background .12s,transform .08s;
+  touch-action:manipulation;
+}
+button:active{transform:scale(.93)}
+button:disabled{opacity:.3;pointer-events:none}
+#btnPreview{
+  background:var(--green);color:#11111b;border-color:transparent;
+  font-size:18px;font-weight:700;padding-left:14px;
+}
+#btnLayout.active{background:var(--accent);color:#11111b}
+.menu{
+  position:absolute;top:calc(100% + 8px);right:10px;z-index:60;
+  background:#26263a;border:1px solid var(--border2);border-radius:14px;
+  padding:6px;min-width:250px;display:none;
+  box-shadow:0 16px 44px rgba(0,0,0,.7);
+  max-height:calc(100dvh - 80px);overflow-y:auto;
+}
+.menu.open{display:block}
+.menu button{
+  width:100%;justify-content:flex-start;gap:10px;
+  height:46px;background:none;border:0;border-radius:9px;
+  padding:0 12px;font-size:15px;
+}
+.menu button:active{background:var(--border2)}
+.menu hr{border:0;border-top:1px solid var(--border);margin:5px 4px}
+
+.stage{
+  flex:1 1 auto;min-height:0;min-width:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:10px;overflow:hidden;
+}
+.art-box{
+  position:relative;border-radius:12px;overflow:hidden;
+  box-shadow:0 10px 34px rgba(0,0,0,.6);
+  background:repeating-conic-gradient(#2b2b3d 0% 25%,#20202e 0% 50%) 50%/18px 18px;
+  aspect-ratio:1 / 1;
+  flex:0 0 auto;
+}
+#art{
+  display:block;width:100%;height:100%;
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  touch-action:none;cursor:crosshair;
+  object-fit:contain;
+}
+.grid{
+  position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(to right,rgba(0,0,0,.28) 1px,transparent 1px),
+    linear-gradient(to bottom,rgba(0,0,0,.28) 1px,transparent 1px);
+  background-size:calc(100% / var(--n)) calc(100% / var(--n));
+}
+.grid.hidden{display:none}
+
+.bottom{
+  flex:0 0 auto;background:var(--panel);border-top:1px solid var(--border);
+  padding:8px 10px;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom));
+  padding-left:calc(10px + env(safe-area-inset-left));
+  padding-right:calc(10px + env(safe-area-inset-right));
+  display:flex;flex-direction:column;gap:8px;
+  min-height:0;
+}
+.row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tools{
+  display:flex;gap:2px;flex-wrap:wrap;
+  background:#15151f;border:1px solid var(--border);border-radius:12px;padding:3px;
+}
+.tools button{
+  width:36px;height:34px;min-width:0;padding:0;
+  background:none;border:0;border-radius:9px;font-size:16px;
+}
+.tools button.active{background:var(--accent);color:#11111b}
+.tools .sep{width:1px;background:var(--border);margin:4px 2px}
+input[type=color]{
+  width:42px;height:34px;padding:0;flex:0 0 auto;
+  border:1px solid var(--border2);border-radius:11px;
+  background:#15151f;cursor:pointer;
+}
+input[type=color]::-webkit-color-swatch-wrapper{padding:3px}
+input[type=color]::-webkit-color-swatch{border:none;border-radius:7px}
+
+#btnAddColor{
+  height:34px;min-width:34px;width:34px;padding:0;
+  font-size:20px;font-weight:700;line-height:1;
+  background:transparent;border:1px dashed var(--border2);
+  color:var(--muted);border-radius:11px;
+  transition:all .15s;
+}
+#btnAddColor:hover,#btnAddColor:active{
+  border-color:var(--accent);color:var(--accent);
+  background:rgba(137,180,250,.08);
+}
+
+select{
+  font:inherit;font-size:14px;color:var(--fg);
+  background:#15151f;border:1px solid var(--border2);
+  border-radius:11px;height:34px;padding:0 24px 0 8px;
+  flex:0 0 auto;cursor:pointer;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237f849c'/></svg>");
+  background-repeat:no-repeat;background-position:right 8px center;
+}
+.palette{
+  display:grid;grid-template-columns:repeat(8,1fr);gap:5px;
+  max-height:120px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--border2) transparent;
+}
+.palette::-webkit-scrollbar{width:4px}
+.palette::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.palette span{
+  aspect-ratio:1/1;border-radius:8px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.15);
+  transition:transform .1s;
+  position:relative;
+}
+.palette span:active{transform:scale(.88)}
+.palette span.sel{outline:2px solid var(--accent);outline-offset:1px}
+.palette span.custom::after{
+  content:'';position:absolute;top:2px;right:2px;
+  width:4px;height:4px;border-radius:50%;
+  background:rgba(255,255,255,.8);
+}
+
+.timeline-row{display:flex;align-items:center;gap:4px}
+.timeline-row > button{height:34px;min-width:34px;padding:0 6px;font-size:15px}
+#btnPlay.playing{background:var(--accent);color:#11111b}
+#btnAddFrame, #btnDelFrame{font-weight:700;font-size:17px}
+.timeline-scroll{
+  flex:1 1 auto;overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;padding:2px 0;
+}
+.timeline-scroll::-webkit-scrollbar{height:4px}
+.timeline-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.timeline{display:flex;gap:4px}
+.slot{
+  position:relative;flex:0 0 34px;height:34px;border-radius:8px;
+  overflow:hidden;background:#15151f;
+  border:2px solid transparent;cursor:pointer;
+  transition:border-color .12s;
+}
+.slot.active{border-color:var(--accent)}
+.slot.playing{box-shadow:inset 0 0 0 2px var(--green)}
+.slot .thumb{width:100%;height:100%;display:block;image-rendering:pixelated}
+.slot .num{
+  position:absolute;bottom:1px;right:3px;
+  font-size:9px;font-weight:700;
+  color:rgba(255,255,255,.9);text-shadow:0 0 2px #000;
+  pointer-events:none;
+}
+.frame-info{font-size:12px;color:var(--muted);white-space:nowrap;padding-right:4px}
+@media (max-width:380px){.frame-info{display:none}}
+
+body.layout-side{
+  display:grid;
+  grid-template-columns:1fr min(var(--side-w), 45vw);
+  grid-template-rows:auto 1fr;
+  grid-template-areas:"top top" "stage bottom";
+}
+body.layout-side .topbar{grid-area:top}
+body.layout-side .stage{grid-area:stage;min-height:0;min-width:0}
+body.layout-side .bottom{
+  grid-area:bottom;min-height:0;min-width:0;
+  border-top:none;border-left:1px solid var(--border);
+  overflow-y:auto;overflow-x:hidden;padding-top:8px;
+}
+body.layout-side .palette{grid-template-columns:repeat(4,1fr);max-height:none}
+body.layout-side .timeline-row{flex-wrap:wrap}
+body.layout-side .timeline-scroll{width:100%;order:10;flex-basis:100%}
+body.layout-side .frame-info{order:9;margin-left:auto}
+body.layout-side .fps-sel{order:9}
+body.layout-side #sizeSel{flex:1 1 auto}
+body.layout-side .tools{justify-content:center}
+
+.overlay{
+  position:fixed;inset:0;z-index:150;display:none;flex-direction:column;
+  background:#0b0b12;
+}
+.overlay.open{display:flex}
+.ov-head{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top));
+  background:var(--panel);border-bottom:1px solid var(--border);
+}
+.ov-title{font-weight:700;font-size:15px;color:var(--green)}
+#previewFrame{flex:1;border:0;width:100%;background:#1e1e2e}
+.ov-foot{
+  flex:0 0 auto;display:flex;gap:6px;padding:8px 10px;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom));
+  background:var(--panel);border-top:1px solid var(--border);
+}
+.ov-foot button{flex:1;font-size:13px;height:42px;font-weight:600;padding:0 4px}
+.toast{
+  position:fixed;left:50%;bottom:calc(180px + env(safe-area-inset-bottom));
+  transform:translate(-50%,16px);opacity:0;pointer-events:none;
+  background:#2b2b3d;border:1px solid var(--border2);color:var(--fg);
+  padding:9px 18px;border-radius:22px;font-size:13px;
+  transition:opacity .2s,transform .2s;z-index:300;
+  max-width:80vw;text-align:center;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+<link rel="icon" type="image/svg+xml" id="faviconLink">
+<link rel="apple-touch-icon" id="appleIconLink">
+<link rel="icon" type="image/png" sizes="192x192" id="androidIcon192">
+<link rel="icon" type="image/png" sizes="512x512" id="androidIcon512">
+</head>
+<body>
+
+<header class="topbar">
+  <button id="btnUndo" title="Отменить (Ctrl+Z)">↶</button>
+  <button id="btnRedo" title="Повторить (Ctrl+Y)">↷</button>
+  <span class="spacer"></span>
+  <button id="btnLayout" title="Горизонтальная раскладка (L)">⤢</button>
+  <button id="btnPreview" title="Просмотр анимации">▶</button>
+  <button id="btnMenu" title="Меню">⋮</button>
+  <div class="menu" id="menu">
+    <button data-act="open">📂 Открыть файл…</button>
+    <button data-act="new">🆕 Новый проект</button>
+    <hr>
+    <button data-act="dup">📋 Дублировать кадр →</button>
+    <button data-act="clearFrame">🧹 Очистить кадр</button>
+    <hr>
+    <button data-act="saveProject">📦 Сохранить проект (JSON)</button>
+    <hr>
+    <button data-act="html">💾 Анимированный HTML</button>
+    <button data-act="svg">🖼 Анимированный SVG</button>
+    <button data-act="webm">🎬 Видео WebM</button>
+    <button data-act="png">📷 Текущий кадр PNG</button>
+    <button data-act="jpg">📷 Текущий кадр JPG</button>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <div class="art-box" id="artBox" style="--n:24">
+    <canvas id="art"></canvas>
+    <div class="grid" id="grid"></div>
+  </div>
+</main>
+
+<footer class="bottom" id="bottom">
+  <div class="row">
+    <div class="tools" id="tools">
+      <button data-tool="pencil" class="active" title="Карандаш (B)">✏️</button>
+      <button data-tool="eraser" title="Ластик (X)">🧽</button>
+      <button data-tool="fill" title="Заливка (F)">🪣</button>
+      <button data-tool="picker" title="Пипетка (I)">💧</button>
+      <span class="sep"></span>
+      <button data-tool="line" title="Линия (L), Shift — стирает">╱</button>
+      <button data-tool="rect" title="Квадрат (R), Shift — стирает">▭</button>
+      <button data-tool="ellipse" title="Круг (E), Shift — стирает">◯</button>
+      <button data-tool="triangle" title="Треугольник (T), Shift — стирает">△</button>
+      <button id="btnFilled" title="Заливка фигур">▢</button>
+      <span class="sep"></span>
+      <button id="btnGrid" class="active" title="Сетка">▦</button>
+      <button id="btnOnion" title="Луковица (O)">🧅</button>
+    </div>
+    <input type="color" id="colorPick" value="#ff5d8f">
+    <button id="btnAddColor" title="Добавить текущий цвет в палитру">+</button>
+    <span class="spacer"></span>
+    <select id="sizeSel" title="Размер холста">
+      <option value="8">8×8</option>
+      <option value="16">16×16</option>
+      <option value="24" selected>24×24</option>
+      <option value="32">32×32</option>
+      <option value="48">48×48</option>
+      <option value="64">64×64</option>
+    </select>
+  </div>
+  <div class="palette" id="palette"></div>
+  <div class="timeline-row">
+    <button id="btnPlay" title="Проиграть (Пробел)">▶</button>
+    <button id="btnAddFrame" title="Добавить кадр">+</button>
+    <button id="btnDelFrame" title="Удалить кадр">−</button>
+    <div class="timeline-scroll">
+      <div class="timeline" id="timeline"></div>
+    </div>
+    <span class="frame-info" id="frameInfo">1/12</span>
+    <select id="fpsSel" class="fps-sel" title="Скорость">
+      <option value="6">6 fps</option>
+      <option value="8">8 fps</option>
+      <option value="10">10 fps</option>
+      <option value="12" selected>12 fps</option>
+      <option value="15">15 fps</option>
+      <option value="20">20 fps</option>
+      <option value="24">24 fps</option>
+    </select>
+  </div>
+</footer>
+
+<div class="overlay" id="overlay">
+  <div class="ov-head">
+    <span class="ov-title">▶ Просмотр</span>
+    <span class="spacer"></span>
+    <button id="btnClosePreview" title="Закрыть">✕</button>
+  </div>
+  <iframe id="previewFrame" sandbox="allow-scripts"></iframe>
+  <div class="ov-foot">
+    <button data-save="html">HTML</button>
+    <button data-save="svg">SVG</button>
+    <button data-save="webm">WebM</button>
+    <button data-save="png">PNG</button>
+    <button data-save="jpg">JPG</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" hidden accept=".json,application/json,image/*,.svg">
+
+<script>
+(function () {
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ═══════════════ ИКОНКИ ═══════════════ */
+function setupIcons() {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">' +
+      '<rect width="16" height="16" fill="#1e1e2e"/>' +
+      '<rect x="3" y="3" width="2" height="2" fill="#ff5d8f"/>' +
+      '<rect x="7" y="3" width="2" height="2" fill="#89b4fa"/>' +
+      '<rect x="11" y="3" width="2" height="2" fill="#a6e3a1"/>' +
+      '<rect x="3" y="7" width="2" height="2" fill="#ffd700"/>' +
+      '<rect x="7" y="7" width="2" height="2" fill="#cdd6f4"/>' +
+      '<rect x="11" y="7" width="2" height="2" fill="#ff7f00"/>' +
+      '<rect x="3" y="11" width="2" height="2" fill="#2979ff"/>' +
+      '<rect x="7" y="11" width="2" height="2" fill="#00e5ff"/>' +
+      '<rect x="11" y="11" width="2" height="2" fill="#7c4dff"/>' +
+    '</svg>';
+  const uri = 'data:image/svg+xml;base64,' + btoa(svg);
+  const fav = document.getElementById('faviconLink');
+  if (fav) fav.href = uri;
+  const img = new Image();
+  img.onload = () => {
+    const pngs = {};
+    [180, 192, 512].forEach(size => {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      if (size === 512) {
+        const pad = Math.round(size * 0.1);
+        g.fillStyle = '#1e1e2e'; g.fillRect(0, 0, size, size);
+        g.drawImage(img, pad, pad, size - 2*pad, size - 2*pad);
+      } else g.drawImage(img, 0, 0, size, size);
+      pngs[size] = c.toDataURL('image/png');
+    });
+    const apple = document.getElementById('appleIconLink');
+    const a192 = document.getElementById('androidIcon192');
+    const a512 = document.getElementById('androidIcon512');
+    if (apple) apple.href = pngs[180];
+    if (a192) a192.href = pngs[192];
+    if (a512) a512.href = pngs[512];
+    try {
+      const manifest = {
+        name: 'Пиксель-аниматор', short_name: 'Пиксель',
+        start_url: '.', display: 'standalone', orientation: 'any',
+        background_color: '#14141f', theme_color: '#1e1e2e',
+        icons: [
+          { src: pngs[192], sizes: '192x192', type: 'image/png' },
+          { src: pngs[512], sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+      const mlink = document.createElement('link');
+      mlink.rel = 'manifest'; mlink.href = URL.createObjectURL(blob);
+      document.head.appendChild(mlink);
+    } catch (e) {}
+  };
+  img.src = uri;
+}
+setupIcons();
+
+/* ═══════════════ КОНСТАНТЫ ═══════════════ */
+const DEFAULT_FRAME_COUNT = 12;
+const DEFAULT_SIZE = 24;
+const MAX_UNDO = 40;
+const LS_KEY = 'pixel-editor-anim-v4';
+const ONION_PREV_TINT = 0xff5d8f;
+const ONION_NEXT_TINT = 0x89b4fa;
+const ONION_ALPHA = 0.35;
+const PALETTE = [
+  '#000000','#3b3b4f','#7f849c','#cdd6f4','#ffffff','#ff0000','#ff7f00','#ffd700',
+  '#00c853','#00e5ff','#2979ff','#7c4dff','#ff5d8f','#8b4513','#2e8b57','#1e1e2e'
+];
+const SHAPE_TOOLS = new Set(['line','rect','ellipse','triangle']);
+const isShapeTool = t => SHAPE_TOOLS.has(t);
+
+const hexToPx = h => (0xFF000000 | parseInt(h.slice(1), 16)) >>> 0;
+const pxToHex = v => v ? '#' + (v & 0xFFFFFF).toString(16).padStart(6, '0') : null;
+
+/* ═══════════════ СОСТОЯНИЕ ═══════════════ */
+const state = {
+  size: DEFAULT_SIZE,
+  frames: [],
+  currentFrame: 0,
+  color: '#ff5d8f',
+  tool: 'pencil',
+  filled: false,
+  fps: 12,
+  onionSkin: false,
+  layoutSide: false,
+  customPalette: [],
+  undo: [], redo: []
+};
+for (let i = 0; i < DEFAULT_FRAME_COUNT; i++)
+  state.frames.push(new Uint32Array(DEFAULT_SIZE * DEFAULT_SIZE));
+
+/* ═══════════════ ЭЛЕМЕНТЫ ═══════════════ */
+const art = $('#art');
+const ctx = art.getContext('2d');
+const artBox = $('#artBox');
+const gridEl = $('#grid');
+const stage = $('#stage');
+const colorPick = $('#colorPick');
+const btnAddColor = $('#btnAddColor');
+const paletteEl = $('#palette');
+const sizeSel = $('#sizeSel');
+const fpsSel = $('#fpsSel');
+const timelineEl = $('#timeline');
+const frameInfo = $('#frameInfo');
+const toastEl = $('#toast');
+const overlay = $('#overlay');
+const frame = $('#previewFrame');
+const fileInput = $('#fileInput');
+const menu = $('#menu');
+const btnUndo = $('#btnUndo');
+const btnRedo = $('#btnRedo');
+const btnGrid = $('#btnGrid');
+const btnPlay = $('#btnPlay');
+const btnOnion = $('#btnOnion');
+const btnLayout = $('#btnLayout');
+const btnFilled = $('#btnFilled');
+const thumbCanvases = [];
+
+/* ═══════════════ КЭШ ImageData ═══════════════ */
+const imageDataCache = new WeakMap();
+function getImageData(g, n) {
+  let e = imageDataCache.get(g);
+  if (!e || e.width !== n) { e = g.createImageData(n, n); imageDataCache.set(g, e); }
+  else e.data.fill(0);
+  return e;
+}
+function fillImageData(img, px, n) {
+  const d = img.data;
+  for (let i = 0; i < n * n; i++) {
+    const v = px[i]; if (!v) continue;
+    const o = i * 4;
+    d[o] = (v >> 16) & 255; d[o+1] = (v >> 8) & 255; d[o+2] = v & 255; d[o+3] = 255;
+  }
+}
+const tmpCanvas = document.createElement('canvas');
+const frameCanvas = document.createElement('canvas');
+const frameCtx = frameCanvas.getContext('2d');
+function drawPixelsTo(g, px, n, scale) {
+  const img = getImageData(g, n); fillImageData(img, px, n);
+  if (scale === 1) { g.putImageData(img, 0, 0); return; }
+  if (tmpCanvas.width !== n) { tmpCanvas.width = tmpCanvas.height = n; }
+  const tg = tmpCanvas.getContext('2d');
+  const timg = getImageData(tg, n); fillImageData(timg, px, n);
+  tg.putImageData(timg, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(tmpCanvas, 0, 0, n * scale, n * scale);
+}
+
+/* ═══════════════ ONION ═══════════════ */
+const onionCache = { prev: null, next: null, frameIdx: -1, size: -1 };
+function makeGhost(idx, n, tint) {
+  if (idx < 0 || idx >= state.frames.length) return null;
+  const px = state.frames[idx];
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  const g = c.getContext('2d');
+  const img = g.createImageData(n, n);
+  const d = img.data;
+  const tr = (tint >> 16) & 255, tg = (tint >> 8) & 255, tb = tint & 255;
+  let any = false;
+  for (let i = 0; i < n * n; i++) {
+    if (!px[i]) continue;
+    any = true;
+    const o = i * 4;
+    d[o] = tr; d[o+1] = tg; d[o+2] = tb; d[o+3] = 255;
+  }
+  if (!any) return null;
+  g.putImageData(img, 0, 0);
+  return c;
+}
+function buildOnionCache() {
+  const n = state.size;
+  onionCache.frameIdx = state.currentFrame;
+  onionCache.size = n;
+  onionCache.prev = makeGhost(state.currentFrame - 1, n, ONION_PREV_TINT);
+  onionCache.next = makeGhost(state.currentFrame + 1, n, ONION_NEXT_TINT);
+}
+function invalidateOnion() { onionCache.frameIdx = -1; }
+
+function renderCurrent() {
+  const n = state.size;
+  if (!state.onionSkin || playing) {
+    drawPixelsTo(ctx, state.frames[state.currentFrame], n, 1);
+    return;
+  }
+  if (onionCache.frameIdx !== state.currentFrame || onionCache.size !== n) buildOnionCache();
+  ctx.clearRect(0, 0, n, n);
+  ctx.imageSmoothingEnabled = false;
+  if (onionCache.prev) { ctx.globalAlpha = ONION_ALPHA; ctx.drawImage(onionCache.prev, 0, 0); }
+  if (onionCache.next) { ctx.globalAlpha = ONION_ALPHA; ctx.drawImage(onionCache.next, 0, 0); }
+  ctx.globalAlpha = 1;
+  if (frameCanvas.width !== n) frameCanvas.width = frameCanvas.height = n;
+  const img = getImageData(frameCtx, n);
+  fillImageData(img, state.frames[state.currentFrame], n);
+  frameCtx.putImageData(img, 0, 0);
+  ctx.drawImage(frameCanvas, 0, 0);
+}
+function updateThumb(i) {
+  const cv = thumbCanvases[i]; if (!cv) return;
+  const n = state.size;
+  if (cv.width !== n) cv.width = cv.height = n;
+  drawPixelsTo(cv.getContext('2d'), state.frames[i], n, 1);
+}
+function updateAllThumbs() { for (let i = 0; i < state.frames.length; i++) updateThumb(i); }
+function updateFrameInfo() {
+  frameInfo.textContent = (state.currentFrame + 1) + '/' + state.frames.length;
+  const slots = timelineEl.children;
+  for (let i = 0; i < slots.length; i++)
+    slots[i].classList.toggle('active', i === state.currentFrame);
+  const act = slots[state.currentFrame];
+  if (act) act.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+}
+function rebuildTimeline() {
+  timelineEl.innerHTML = '';
+  thumbCanvases.length = 0;
+  for (let i = 0; i < state.frames.length; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === state.currentFrame ? ' active' : '');
+    slot.dataset.i = i;
+    const cv = document.createElement('canvas');
+    cv.className = 'thumb';
+    cv.width = cv.height = state.size;
+    slot.appendChild(cv);
+    const num = document.createElement('span');
+    num.className = 'num'; num.textContent = i + 1;
+    slot.appendChild(num);
+    slot.addEventListener('click', () => selectFrame(i));
+    timelineEl.appendChild(slot);
+    thumbCanvases.push(cv);
+  }
+}
+function syncUI() {
+  art.width = state.size; art.height = state.size;
+  artBox.style.setProperty('--n', state.size);
+  sizeSel.value = String(state.size);
+  invalidateOnion();
+  rebuildTimeline();
+  renderCurrent();
+  updateAllThumbs();
+  updateFrameInfo();
+  fitCanvas();
+}
+function selectFrame(i) {
+  if (i < 0 || i >= state.frames.length || i === state.currentFrame) return;
+  if (drawing) endStroke();
+  if (playing) stopPlay();
+  state.currentFrame = i;
+  renderCurrent();
+  updateFrameInfo();
+  saveLocal();
+}
+
+/* ═══════════════ UNDO / REDO ═══════════════ */
+function pushUndo(entry) {
+  state.undo.push(entry);
+  while (state.undo.length > MAX_UNDO) state.undo.shift();
+  state.redo.length = 0;
+  updateUndoButtons();
+}
+function pushUndoFrame(index) {
+  if (index === undefined) index = state.currentFrame;
+  pushUndo({ type: 'frame', index, data: state.frames[index].slice() });
+}
+function pushUndoFull() {
+  pushUndo({ type: 'full', size: state.size, currentFrame: state.currentFrame,
+    frames: state.frames.map(f => f.slice()) });
+}
+function applyFull(s) {
+  state.size = s.size;
+  state.frames = s.frames.map(f => f.slice());
+  state.currentFrame = Math.min(s.currentFrame, state.frames.length - 1);
+  invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+}
+function undo() {
+  if (!state.undo.length) return;
+  const e = state.undo.pop();
+  let saved;
+  if (e.type === 'frame') {
+    saved = { type: 'frame', index: e.index, data: state.frames[e.index].slice() };
+    state.frames[e.index] = e.data.slice();
+  } else {
+    saved = { type: 'full', size: state.size, currentFrame: state.currentFrame,
+      frames: state.frames.map(f => f.slice()) };
+    applyFull(e);
+  }
+  state.redo.push(saved);
+  invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+}
+function redo() {
+  if (!state.redo.length) return;
+  const e = state.redo.pop();
+  let saved;
+  if (e.type === 'frame') {
+    saved = { type: 'frame', index: e.index, data: state.frames[e.index].slice() };
+    state.frames[e.index] = e.data.slice();
+  } else {
+    saved = { type: 'full', size: state.size, currentFrame: state.currentFrame,
+      frames: state.frames.map(f => f.slice()) };
+    applyFull(e);
+  }
+  state.undo.push(saved);
+  invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+}
+function updateUndoButtons() {
+  btnUndo.disabled = !state.undo.length;
+  btnRedo.disabled = !state.redo.length;
+}
+
+/* ═══════════════ РИСОВАНИЕ ═══════════════ */
+function toPixel(e) {
+  const r = art.getBoundingClientRect();
+  const n = state.size;
+  const x = Math.floor((e.clientX - r.left) / r.width * n);
+  const y = Math.floor((e.clientY - r.top) / r.height * n);
+  if (x < 0 || y < 0 || x >= n || y >= n) return null;
+  return { x, y };
+}
+function toPixelClamped(e) {
+  const r = art.getBoundingClientRect();
+  const n = state.size;
+  const x = Math.floor((e.clientX - r.left) / r.width * n);
+  const y = Math.floor((e.clientY - r.top) / r.height * n);
+  return { x: Math.max(0, Math.min(n - 1, x)), y: Math.max(0, Math.min(n - 1, y)) };
+}
+function setPx(x, y, v) {
+  const n = state.size;
+  if (x < 0 || y < 0 || x >= n || y >= n) return;
+  state.frames[state.currentFrame][y * n + x] = v;
+}
+function linePx(x0, y0, x1, y1, cb) {
+  let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+  let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    cb(x0, y0);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+function floodFill(x, y, newV) {
+  const n = state.size, px = state.frames[state.currentFrame];
+  const target = px[y * n + x];
+  if (target === newV) return;
+  const stack = [x, y];
+  while (stack.length) {
+    const cy = stack.pop(), cx = stack.pop();
+    if (cx < 0 || cy < 0 || cx >= n || cy >= n) continue;
+    const i = cy * n + cx;
+    if (px[i] !== target) continue;
+    px[i] = newV;
+    stack.push(cx+1, cy, cx-1, cy, cx, cy+1, cx, cy-1);
+  }
+}
+
+/* ═══════════════ ФИГУРЫ ═══════════════ */
+function drawLineShape(px, n, x0, y0, x1, y1, v) {
+  linePx(x0, y0, x1, y1, (x, y) => {
+    if (x >= 0 && y >= 0 && x < n && y < n) px[y * n + x] = v;
+  });
+}
+function drawRectShape(px, n, x0, y0, x1, y1, v, filled) {
+  const minX = Math.max(0, Math.min(x0, x1));
+  const maxX = Math.min(n - 1, Math.max(x0, x1));
+  const minY = Math.max(0, Math.min(y0, y1));
+  const maxY = Math.min(n - 1, Math.max(y0, y1));
+  if (minX > maxX || minY > maxY) return;
+  if (filled) {
+    for (let y = minY; y <= maxY; y++) {
+      const row = y * n;
+      for (let x = minX; x <= maxX; x++) px[row + x] = v;
+    }
+  } else {
+    for (let x = minX; x <= maxX; x++) {
+      px[minY * n + x] = v;
+      if (maxY !== minY) px[maxY * n + x] = v;
+    }
+    for (let y = minY + 1; y < maxY; y++) {
+      px[y * n + minX] = v;
+      if (maxX !== minX) px[y * n + maxX] = v;
+    }
+  }
+}
+function drawEllipseShape(px, n, x0, y0, x1, y1, v, filled) {
+  const minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const rx = (maxX - minX) / 2, ry = (maxY - minY) / 2;
+  if (rx < 0.5 || ry < 0.5) { drawLineShape(px, n, x0, y0, x1, y1, v); return; }
+  const inside = (x, y) => {
+    const dx = (x - cx) / rx, dy = (y - cy) / ry;
+    return dx*dx + dy*dy <= 1.0;
+  };
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (x < 0 || y < 0 || x >= n || y >= n) continue;
+      if (!inside(x, y)) continue;
+      if (filled) { px[y * n + x] = v; continue; }
+      if (!inside(x-1, y) || !inside(x+1, y) || !inside(x, y-1) || !inside(x, y+1))
+        px[y * n + x] = v;
+    }
+  }
+}
+function drawTriangleShape(px, n, x0, y0, x1, y1, v, filled) {
+  const minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+  // Вырожденный случай — просто линия
+  if (minX === maxX || minY === maxY) {
+    drawLineShape(px, n, x0, y0, x1, y1, v); return;
+  }
+  const apexX = Math.floor((minX + maxX) / 2);
+  const apexY = minY;
+  const blX = minX, blY = maxY;
+  const brX = maxX, brY = maxY;
+  const put = (x, y) => {
+    if (x >= 0 && y >= 0 && x < n && y < n) px[y * n + x] = v;
+  };
+  if (filled) {
+    const h = maxY - minY;
+    for (let y = minY; y <= maxY; y++) {
+      const t = h > 0 ? (y - minY) / h : 0;
+      const halfW = t * (maxX - minX) / 2;
+      const left = Math.max(minX, Math.round(apexX - halfW));
+      const right = Math.min(maxX, Math.round(apexX + halfW));
+      for (let x = left; x <= right; x++) put(x, y);
+    }
+  } else {
+    linePx(apexX, apexY, blX, blY, put);
+    linePx(apexX, apexY, brX, brY, put);
+    linePx(blX, blY, brX, brY, put);
+  }
+}
+function applyShape(tool, px, n, x0, y0, x1, y1, v, filled) {
+  if (tool === 'line') drawLineShape(px, n, x0, y0, x1, y1, v);
+  else if (tool === 'rect') drawRectShape(px, n, x0, y0, x1, y1, v, filled);
+  else if (tool === 'ellipse') drawEllipseShape(px, n, x0, y0, x1, y1, v, filled);
+  else if (tool === 'triangle') drawTriangleShape(px, n, x0, y0, x1, y1, v, filled);
+}
+
+/* ═══════════════ POINTER ═══════════════ */
+let drawing = false, lastPt = null;
+let shapeStart = null, shapeSnapshot = null;
+
+art.addEventListener('contextmenu', e => e.preventDefault());
+art.addEventListener('pointerdown', e => {
+  if (!e.isPrimary) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  if (playing) stopPlay();
+  const p = toPixel(e); if (!p) return;
+
+  if (state.tool === 'picker') {
+    const v = state.frames[state.currentFrame][p.y * state.size + p.x];
+    if (v) { setColor(pxToHex(v)); toast('Цвет: ' + pxToHex(v)); }
+    return;
+  }
+
+  pushUndoFrame();
+  drawing = true;
+  try { art.setPointerCapture(e.pointerId); } catch (err) {}
+
+  if (isShapeTool(state.tool)) {
+    shapeStart = { x: p.x, y: p.y };
+    shapeSnapshot = state.frames[state.currentFrame].slice();
+    const v = e.shiftKey ? 0 : hexToPx(state.color);
+    applyShape(state.tool, state.frames[state.currentFrame], state.size,
+      p.x, p.y, p.x, p.y, v, state.filled);
+    commit();
+    return;
+  }
+
+  lastPt = null;
+  const v = state.tool === 'eraser' ? 0 : hexToPx(state.color);
+  if (state.tool === 'fill') {
+    floodFill(p.x, p.y, v);
+    drawing = false;
+  } else {
+    setPx(p.x, p.y, v);
+    lastPt = p;
+  }
+  commit();
+});
+art.addEventListener('pointermove', e => {
+  if (!drawing) return;
+  if (shapeStart) {
+    const p = toPixelClamped(e);
+    state.frames[state.currentFrame].set(shapeSnapshot);
+    const v = e.shiftKey ? 0 : hexToPx(state.color);
+    applyShape(state.tool, state.frames[state.currentFrame], state.size,
+      shapeStart.x, shapeStart.y, p.x, p.y, v, state.filled);
+    commit();
+    return;
+  }
+  if (!lastPt) return;
+  const p = toPixel(e); if (!p) return;
+  const v = state.tool === 'eraser' ? 0 : hexToPx(state.color);
+  linePx(lastPt.x, lastPt.y, p.x, p.y, (x, y) => setPx(x, y, v));
+  lastPt = p;
+  commit();
+});
+function endStroke() {
+  if (!drawing) return;
+  drawing = false;
+  lastPt = null;
+  shapeStart = null;
+  shapeSnapshot = null;
+  updateThumb(state.currentFrame);
+  updateUndoButtons();
+}
+art.addEventListener('pointerup', endStroke);
+art.addEventListener('pointercancel', endStroke);
+art.addEventListener('pointerleave', () => { if (!shapeStart) lastPt = null; });
+function commit() { renderCurrent(); saveLocal(); }
+
+/* ═══════════════ PLAY ═══════════════ */
+let playing = false, playTimer;
+function startPlay() {
+  if (playing) return;
+  playing = true;
+  btnPlay.textContent = '⏸';
+  btnPlay.classList.add('playing');
+  let i = state.currentFrame;
+  const slots = timelineEl.children;
+  const tick = () => {
+    if (!playing) return;
+    drawPixelsTo(ctx, state.frames[i], state.size, 1);
+    for (let k = 0; k < slots.length; k++) slots[k].classList.toggle('playing', k === i);
+    i = (i + 1) % state.frames.length;
+    playTimer = setTimeout(tick, 1000 / state.fps);
+  };
+  tick();
+}
+function stopPlay() {
+  if (!playing) return;
+  playing = false;
+  clearTimeout(playTimer);
+  btnPlay.textContent = '▶';
+  btnPlay.classList.remove('playing');
+  for (const s of timelineEl.children) s.classList.remove('playing');
+  renderCurrent();
+}
+btnPlay.addEventListener('click', () => playing ? stopPlay() : startPlay());
+
+/* ═══════════════ RESIZE ═══════════════ */
+function resizeAll(newSize) {
+  const oldN = state.size;
+  if (oldN === newSize) return;
+  state.frames = state.frames.map(f => {
+    const np = new Uint32Array(newSize * newSize);
+    for (let y = 0; y < newSize; y++) {
+      for (let x = 0; x < newSize; x++) {
+        const sx = Math.min(oldN - 1, Math.floor(x * oldN / newSize));
+        const sy = Math.min(oldN - 1, Math.floor(y * oldN / newSize));
+        np[y * newSize + x] = f[sy * oldN + sx];
+      }
+    }
+    return np;
+  });
+  state.size = newSize;
+  invalidateOnion(); syncUI(); saveLocal();
+}
+
+/* ═══════════════ ЭКСПОРТ ═══════════════ */
+function buildAnimatedHTML() {
+  const n = state.size, scale = 8;
+  const c = document.createElement('canvas');
+  c.width = c.height = n * scale;
+  const g = c.getContext('2d');
+  const urls = [];
+  for (let i = 0; i < state.frames.length; i++) {
+    g.clearRect(0, 0, c.width, c.height);
+    drawPixelsTo(g, state.frames[i], n, scale);
+    urls.push(c.toDataURL('image/png'));
+  }
+  const fps = state.fps;
+  return '<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Пиксель-анимация</title>' +
+    '<style>html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#1e1e2e}' +
+    'img{width:min(88vw,88vh);image-rendering:pixelated;display:block;border-radius:12px}</style>' +
+    '</head><body><img id="f" src="' + urls[0] + '" alt="анимация">' +
+    '<script>const frames=' + JSON.stringify(urls) + ';const fps=' + fps + ';' +
+    'let i=0;setInterval(function(){i=(i+1)%frames.length;document.getElementById("f").src=frames[i];},1000/fps);' +
+    '<\/script></body></html>';
+}
+function buildAnimatedSVG() {
+  const n = state.size, N = state.frames.length;
+  const dur = (N / state.fps).toFixed(3);
+  const px = Math.max(64, Math.min(1024, n * 12));
+  let body = '';
+  for (let i = 0; i < N; i++) {
+    const vals = [];
+    for (let j = 0; j < N; j++) vals.push(i === j ? 1 : 0);
+    const groups = new Map();
+    const fr = state.frames[i];
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const v = fr[y * n + x]; if (!v) continue;
+      const hex = '#' + (v & 0xFFFFFF).toString(16).padStart(6, '0');
+      if (!groups.has(hex)) groups.set(hex, []);
+      groups.get(hex).push('<rect x="'+x+'" y="'+y+'" width="1" height="1"/>');
+    }
+    body += '  <g opacity="0">\n';
+    body += '    <animate attributeName="opacity" values="' + vals.join(';') +
+      '" dur="' + dur + 's" repeatCount="indefinite" calcMode="discrete"/>\n';
+    for (const [color, rects] of groups) body += '    <g fill="' + color + '">' + rects.join('') + '</g>\n';
+    body += '  </g>\n';
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n + ' ' + n +
+    '" width="' + px + '" height="' + px + '" shape-rendering="crispEdges">\n' + body + '</svg>';
+}
+function download(content, name, type) {
+  const blob = content instanceof Blob ? content
+    : new Blob([content], { type: type || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+function exportCanvasForFrame(i) {
+  const n = state.size;
+  const scale = Math.max(1, Math.round(512 / n));
+  const c = document.createElement('canvas');
+  c.width = c.height = n * scale;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  drawPixelsTo(g, state.frames[i], n, scale);
+  return c;
+}
+
+/* ═══════════════ ПРОЕКТ ═══════════════ */
+function encodeFrames() {
+  return state.frames.map(f => {
+    const u8 = new Uint8Array(f.buffer);
+    let s = ''; const ch = 4096;
+    for (let j = 0; j < u8.length; j += ch)
+      s += String.fromCharCode.apply(null, u8.subarray(j, Math.min(j + ch, u8.length)));
+    return btoa(s);
+  });
+}
+function decodeFrames(arr, size) {
+  const n = size * size;
+  return arr.map(b64 => {
+    const s = atob(b64);
+    const u8 = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+    const u32 = new Uint32Array(n);
+    if (u8.length >= n * 4) u32.set(new Uint32Array(u8.buffer, 0, n));
+    return u32;
+  });
+}
+function buildProjectJSON() {
+  return JSON.stringify({
+    v: 4, size: state.size, fps: state.fps, color: state.color, tool: state.tool,
+    filled: state.filled, onionSkin: state.onionSkin, layoutSide: state.layoutSide,
+    customPalette: state.customPalette,
+    currentFrame: state.currentFrame, frames: encodeFrames()
+  });
+}
+function loadProjectJSON(text) {
+  const p = JSON.parse(text);
+  if (!p || !p.size || !Array.isArray(p.frames)) throw new Error('Неверный формат');
+  const decoded = decodeFrames(p.frames, p.size);
+  if (!decoded.every(f => f.length === p.size * p.size)) throw new Error('Повреждённые кадры');
+  pushUndoFull();
+  state.size = p.size;
+  state.frames = decoded;
+  state.currentFrame = Math.max(0, Math.min(decoded.length - 1, p.currentFrame | 0));
+  if (p.fps) { state.fps = p.fps; fpsSel.value = String(p.fps); }
+  if (typeof p.color === 'string') setColor(p.color);
+  if (typeof p.tool === 'string') setTool(p.tool);
+  state.filled = !!p.filled;
+  btnFilled.classList.toggle('active', state.filled);
+  btnFilled.textContent = state.filled ? '▣' : '▢';
+  if (Array.isArray(p.customPalette))
+    state.customPalette = p.customPalette.filter(c => /^#[0-9a-f]{6}$/i.test(c));
+  state.onionSkin = !!p.onionSkin;
+  btnOnion.classList.toggle('active', state.onionSkin);
+  state.layoutSide = !!p.layoutSide;
+  applyLayout();
+  renderPalette();
+  invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+}
+function doSave(fmt) {
+  const n = state.size;
+  if (fmt === 'html') download(buildAnimatedHTML(), 'pixel-anim-'+n+'x'+n+'.html', 'text/html;charset=utf-8');
+  else if (fmt === 'svg') download(buildAnimatedSVG(), 'pixel-anim-'+n+'x'+n+'.svg', 'image/svg+xml;charset=utf-8');
+  else if (fmt === 'png') exportCanvasForFrame(state.currentFrame).toBlob(b => {
+    download(b, 'pixel-frame-'+(state.currentFrame+1)+'.png'); toast('PNG сохранён');
+  }, 'image/png');
+  else if (fmt === 'jpg') {
+    const c = exportCanvasForFrame(state.currentFrame);
+    const g = c.getContext('2d');
+    g.globalCompositeOperation = 'destination-over';
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+    c.toBlob(b => { download(b, 'pixel-frame-'+(state.currentFrame+1)+'.jpg'); toast('JPG сохранён'); },
+      'image/jpeg', 0.92);
+  }
+  else if (fmt === 'webm') exportWebM();
+  else if (fmt === 'saveProject') {
+    download(buildProjectJSON(), 'pixel-project.json', 'application/json');
+    toast('Проект сохранён');
+  }
+}
+
+/* ═══════════════ WEBM ═══════════════ */
+async function exportWebM() {
+  if (!window.MediaRecorder) { toast('WebM не поддерживается'); return; }
+  const mime = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+    .find(t => MediaRecorder.isTypeSupported(t));
+  if (!mime) { toast('WebM не поддерживается'); return; }
+  const n = state.size;
+  const scale = Math.max(1, Math.round(512 / n));
+  const c = document.createElement('canvas');
+  c.width = c.height = n * scale;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  drawPixelsTo(g, state.frames[0], n, scale);
+  let stream;
+  try { stream = c.captureStream(state.fps); } catch (e) { toast('Не удалось захватить поток'); return; }
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2500000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => rec.onstop = r);
+  rec.start();
+  const ft = 1000 / state.fps;
+  const total = state.frames.length * 3;
+  let idx = 0;
+  await new Promise(resolve => {
+    function step() {
+      drawPixelsTo(g, state.frames[idx % state.frames.length], n, scale);
+      idx++;
+      if (idx < total) setTimeout(step, ft); else setTimeout(resolve, ft);
+    }
+    setTimeout(step, ft);
+  });
+  rec.stop(); await stopped;
+  download(new Blob(chunks, { type: mime }), 'pixel-anim-'+n+'x'+n+'.webm');
+  toast('WebM сохранён');
+}
+
+/* ═══════════════ ИМПОРТ ═══════════════ */
+function openImageFile(file) {
+  if (/\.json$/i.test(file.name) || file.type === 'application/json') {
+    const r = new FileReader();
+    r.onload = () => {
+      try { loadProjectJSON(String(r.result)); toast('Проект загружен'); }
+      catch (err) { alert('Ошибка проекта: ' + err.message); }
+    };
+    r.readAsText(file); return;
+  }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const n = state.size;
+    const c = document.createElement('canvas');
+    c.width = c.height = n;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    const s = Math.min(n / img.width, n / img.height);
+    const w = Math.max(1, Math.round(img.width * s));
+    const h = Math.max(1, Math.round(img.height * s));
+    g.drawImage(img, Math.floor((n - w) / 2), Math.floor((n - h) / 2), w, h);
+    const data = g.getImageData(0, 0, n, n).data;
+    const px = new Uint32Array(n * n);
+    for (let i = 0; i < n * n; i++) {
+      const o = i * 4;
+      if (data[o + 3] < 16) continue;
+      px[i] = (0xFF000000 | (data[o] << 16) | (data[o+1] << 8) | data[o+2]) >>> 0;
+    }
+    pushUndoFrame();
+    state.frames[state.currentFrame] = px;
+    invalidateOnion(); syncUI(); saveLocal();
+    URL.revokeObjectURL(url);
+    toast('Изображение → кадр ' + (state.currentFrame + 1));
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); alert('Не удалось открыть изображение'); };
+  img.src = url;
+}
+
+/* ═══════════════ ПРОСМОТР ═══════════════ */
+let previewOpen = false;
+function openPreview() {
+  frame.srcdoc = buildAnimatedHTML();
+  overlay.classList.add('open');
+  previewOpen = true;
+  try { history.pushState({ preview: 1 }, ''); } catch (e) {}
+}
+function closePreview(fromPop) {
+  if (!previewOpen) return;
+  overlay.classList.remove('open');
+  previewOpen = false;
+  frame.srcdoc = '';
+  if (!fromPop) { try { history.back(); } catch (e) {} }
+}
+window.addEventListener('popstate', () => { if (previewOpen) closePreview(true); });
+$('#btnPreview').addEventListener('click', openPreview);
+$('#btnClosePreview').addEventListener('click', () => closePreview(false));
+
+/* ═══════════════ UI ═══════════════ */
+function setColor(hex) {
+  state.color = hex;
+  colorPick.value = hex;
+  document.querySelectorAll('.palette span').forEach(s =>
+    s.classList.toggle('sel', s.dataset.c === hex));
+  saveLocal();
+}
+function setTool(t) {
+  state.tool = t;
+  document.querySelectorAll('#tools button[data-tool]').forEach(b =>
+    b.classList.toggle('active', b.dataset.tool === t));
+  saveLocal();
+}
+let toastTimer;
+function toast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2300);
+}
+
+/* ═══════════════ ПАЛИТРА ═══════════════ */
+function renderPalette() {
+  paletteEl.innerHTML = '';
+  [...PALETTE, ...state.customPalette].forEach((c, idx) => {
+    const isCustom = idx >= PALETTE.length;
+    const s = document.createElement('span');
+    s.style.background = c;
+    s.dataset.c = c;
+    if (isCustom) {
+      s.classList.add('custom');
+      s.title = 'ПКМ — удалить';
+      s.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (!confirm('Удалить цвет ' + c + '?')) return;
+        const i = state.customPalette.indexOf(c);
+        if (i >= 0) {
+          state.customPalette.splice(i, 1);
+          renderPalette(); saveLocal();
+          toast('Цвет удалён');
+        }
+      });
+    }
+    if (c === state.color) s.classList.add('sel');
+    s.addEventListener('click', () => setColor(c));
+    paletteEl.appendChild(s);
+  });
+}
+
+/* ═══════════════ ЦВЕТОВОЙ ПИКЕР → state.color ═══════════════ */
+/* ФИКС: без этого state.color не обновлялся при выборе через пикер */
+colorPick.addEventListener('input', () => {
+  setColor(colorPick.value);
+});
+colorPick.addEventListener('change', () => {
+  setColor(colorPick.value);
+});
+
+/* ═══════════════ КНОПКА «+» У ПИКЕРА ═══════════════ */
+btnAddColor.addEventListener('click', () => {
+  // читаем актуальный цвет прямо из пикера, чтобы не зависеть от state
+  const c = (colorPick.value || state.color).toLowerCase();
+  state.color = c; // на случай если input-событие ещё не успело сработать
+  if (PALETTE.includes(c) || state.customPalette.includes(c)) {
+    toast('Цвет ' + c + ' уже в палитре'); return;
+  }
+  if (state.customPalette.length >= 16) {
+    toast('Максимум 16 своих цветов'); return;
+  }
+  state.customPalette.push(c);
+  renderPalette(); saveLocal();
+  paletteEl.scrollTop = paletteEl.scrollHeight;
+  toast('Цвет добавлен: ' + c);
+});
+
+/* ═══════════════ ЛЭЙАУТ ═══════════════ */
+function applyLayout() {
+  document.body.classList.toggle('layout-side', state.layoutSide);
+  btnLayout.classList.toggle('active', state.layoutSide);
+  requestAnimationFrame(fitCanvas);
+  saveLocal();
+}
+function setLayoutSide(on) {
+  if (on && window.innerWidth < 420) {
+    if (!confirm('Экран узкий — на телефоне поверните устройство горизонтально. Продолжить?')) return;
+  }
+  state.layoutSide = !!on;
+  applyLayout();
+  toast(state.layoutSide ? 'Горизонтальная раскладка' : 'Обычная раскладка');
+}
+btnLayout.addEventListener('click', () => setLayoutSide(!state.layoutSide));
+
+/* ═══════════════ ИНСТРУМЕНТЫ ═══════════════ */
+$('#tools').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tool]');
+  if (b) setTool(b.dataset.tool);
+});
+btnGrid.addEventListener('click', () => {
+  const hidden = gridEl.classList.toggle('hidden');
+  btnGrid.classList.toggle('active', !hidden);
+});
+btnFilled.addEventListener('click', () => {
+  state.filled = !state.filled;
+  btnFilled.classList.toggle('active', state.filled);
+  btnFilled.textContent = state.filled ? '▣' : '▢';
+  saveLocal();
+  toast(state.filled ? 'Фигуры: заливка' : 'Фигуры: контур');
+});
+
+/* ═══════════════ ONION ═══════════════ */
+function setOnion(on) {
+  state.onionSkin = !!on;
+  btnOnion.classList.toggle('active', state.onionSkin);
+  invalidateOnion(); renderCurrent(); saveLocal();
+  toast(state.onionSkin ? 'Луковица включена' : 'Луковица выключена');
+}
+btnOnion.addEventListener('click', () => setOnion(!state.onionSkin));
+
+/* ═══════════════ РАЗМЕР / FPS ═══════════════ */
+sizeSel.addEventListener('change', () => {
+  if (playing) stopPlay();
+  pushUndoFull();
+  resizeAll(parseInt(sizeSel.value, 10));
+  updateUndoButtons();
+});
+fpsSel.addEventListener('change', () => {
+  state.fps = parseInt(fpsSel.value, 10);
+  saveLocal();
+  if (playing) { stopPlay(); startPlay(); }
+});
+
+/* ═══════════════ КАДРЫ ═══════════════ */
+$('#btnAddFrame').addEventListener('click', () => {
+  if (state.frames.length >= 60) { toast('Максимум 60 кадров'); return; }
+  if (playing) stopPlay();
+  pushUndoFull();
+  state.frames.splice(state.currentFrame + 1, 0, new Uint32Array(state.size * state.size));
+  state.currentFrame += 1;
+  invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+  toast('Кадр добавлен');
+});
+$('#btnDelFrame').addEventListener('click', () => {
+  if (state.frames.length <= 1) { toast('Нельзя удалить последний'); return; }
+  if (playing) stopPlay();
+  pushUndoFull();
+  state.frames.splice(state.currentFrame, 1);
+  if (state.currentFrame >= state.frames.length) state.currentFrame = state.frames.length - 1;
+  invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+  toast('Кадр удалён');
+});
+
+/* ═══════════════ UNDO / REDO ═══════════════ */
+btnUndo.addEventListener('click', undo);
+btnRedo.addEventListener('click', redo);
+
+/* ═══════════════ МЕНЮ ═══════════════ */
+$('#btnMenu').addEventListener('click', e => {
+  e.stopPropagation(); menu.classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!menu.contains(e.target)) menu.classList.remove('open');
+});
+menu.addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  menu.classList.remove('open');
+  const act = b.dataset.act;
+  if (act === 'open') fileInput.click();
+  else if (act === 'new') {
+    if (!confirm('Начать новый проект? Все кадры будут очищены.')) return;
+    pushUndoFull();
+    state.frames = state.frames.map(() => new Uint32Array(state.size * state.size));
+    state.currentFrame = 0;
+    invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+    toast('Новый проект');
+  }
+  else if (act === 'dup') {
+    pushUndoFull();
+    state.frames.splice(state.currentFrame + 1, 0, state.frames[state.currentFrame].slice());
+    state.currentFrame += 1;
+    invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+    toast('Скопировано в кадр ' + (state.currentFrame + 1));
+  }
+  else if (act === 'clearFrame') {
+    if (!state.frames[state.currentFrame].some(v => v)) { toast('Кадр уже пуст'); return; }
+    pushUndoFrame();
+    state.frames[state.currentFrame] = new Uint32Array(state.size * state.size);
+    invalidateOnion(); syncUI(); saveLocal(); updateUndoButtons();
+    toast('Кадр очищен');
+  }
+  else doSave(act);
+});
+
+/* ═══════════════ СОХРАНЕНИЕ ИЗ ПРОСМОТРА ═══════════════ */
+document.querySelectorAll('.ov-foot button').forEach(b =>
+  b.addEventListener('click', () => doSave(b.dataset.save)));
+
+/* ═══════════════ ОТКРЫТИЕ ═══════════════ */
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files[0];
+  if (f) openImageFile(f);
+  fileInput.value = '';
+});
+
+/* ═══════════════ ХОТКЕИ ═══════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (previewOpen) { closePreview(false); return; }
+    if (menu.classList.contains('open')) { menu.classList.remove('open'); return; }
+  }
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (!ctrl) {
+    const k = e.key.toLowerCase();
+    if (k === 'b' || k === 'и') { setTool('pencil'); return; }
+    if (k === 'x' || k === 'ч') { setTool('eraser'); return; }
+    if (k === 'f' || k === 'а') { setTool('fill'); return; }
+    if (k === 'i' || k === 'ш') { setTool('picker'); return; }
+    if (k === 'l' || k === 'д') { setTool('line'); return; }
+    if (k === 'r' || k === 'к') { setTool('rect'); return; }
+    if (k === 'e' || k === 'у') { setTool('ellipse'); return; }
+    if (k === 't' || k === 'е') { setTool('triangle'); return; }
+    if (k === 'o' || k === 'щ') { e.preventDefault(); setOnion(!state.onionSkin); return; }
+    if (e.code === 'Space') { e.preventDefault(); playing ? stopPlay() : startPlay(); return; }
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if (k === 'z' || k === 'я') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (k === 'y' || k === 'н') { e.preventDefault(); redo(); }
+  else if (k === 's' || k === 'ы') { e.preventDefault(); doSave('saveProject'); }
+});
+
+/* ═══════════════ СТРОГО КВАДРАТНЫЙ ХОЛСТ ═══════════════ */
+function fitCanvas() {
+  const rect = stage.getBoundingClientRect();
+  const cs = getComputedStyle(stage);
+  const pl = parseFloat(cs.paddingLeft) || 0;
+  const pr = parseFloat(cs.paddingRight) || 0;
+  const pt = parseFloat(cs.paddingTop) || 0;
+  const pb = parseFloat(cs.paddingBottom) || 0;
+  const w = rect.width - pl - pr;
+  const h = rect.height - pt - pb;
+  if (w <= 0 || h <= 0) return;
+  const s = Math.max(100, Math.floor(Math.min(w, h)));
+  artBox.style.width = s + 'px';
+  artBox.style.height = s + 'px';
+}
+if (window.ResizeObserver) {
+  new ResizeObserver(fitCanvas).observe(stage);
+  new ResizeObserver(fitCanvas).observe(document.body);
+  if (window.visualViewport) visualViewport.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 250));
+  window.addEventListener('resize', fitCanvas);
+} else {
+  window.addEventListener('resize', fitCanvas);
+}
+
+/* ═══════════════ АВТОСОХРАНЕНИЕ ═══════════════ */
+let localTimer;
+function saveLocalNow() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      size: state.size, fps: state.fps, currentFrame: state.currentFrame,
+      onionSkin: state.onionSkin, color: state.color, tool: state.tool,
+      filled: state.filled, layoutSide: state.layoutSide,
+      customPalette: state.customPalette,
+      frames: encodeFrames()
+    }));
+  } catch (e) {}
+}
+function saveLocal() {
+  clearTimeout(localTimer);
+  localTimer = setTimeout(saveLocalNow, 600);
+}
+window.addEventListener('beforeunload', () => { clearTimeout(localTimer); saveLocalNow(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { clearTimeout(localTimer); saveLocalNow(); }
+});
+
+/* ═══════════════ СТАРТ ═══════════════ */
+(function init() {
+  let restored = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (saved && saved.size > 0 && Array.isArray(saved.frames)) {
+      const decoded = decodeFrames(saved.frames, saved.size);
+      if (decoded.every(f => f.length === saved.size * saved.size)) {
+        state.size = saved.size;
+        state.frames = decoded;
+        state.currentFrame = Math.max(0, Math.min(decoded.length - 1, saved.currentFrame | 0));
+        if (saved.fps) { state.fps = saved.fps; fpsSel.value = String(saved.fps); }
+        if (saved.color) state.color = saved.color;
+        if (saved.tool) state.tool = saved.tool;
+        if (saved.filled) { state.filled = true; btnFilled.textContent = '▣'; btnFilled.classList.add('active'); }
+        if (Array.isArray(saved.customPalette))
+          state.customPalette = saved.customPalette.filter(c => /^#[0-9a-f]{6}$/i.test(c));
+        if (saved.onionSkin) { state.onionSkin = true; btnOnion.classList.add('active'); }
+        if (saved.layoutSide) state.layoutSide = true;
+        restored = true;
+      }
+    }
+  } catch (e) {}
+
+  if (state.layoutSide) applyLayout();
+  renderPalette();
+  syncUI();
+  setColor(state.color);
+  setTool(state.tool);
+  updateUndoButtons();
+  fitCanvas();
+  if (restored) setTimeout(() => toast('Проект восстановлен'), 400);
+})();
+
+})();
+</script>
+</body>
+</html>
